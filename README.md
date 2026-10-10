@@ -31,6 +31,11 @@ DC-Lab-Sim-course (လက်တွေ့) နှင့် ဤ course (ဒီဇ�
 
 စာအုပ် 9 chapters အပြည့် ဖုံးလွှမ်းပြီးပါပြီ
 
+**ရေးသားပုံ စည်းမျဉ်းများ** — `WRITING_RULES.md` (နှင့် `.hermes.md`) တွင်
+course-wide style rules သတ်မှတ်ထားပါသည် — natural Burmese + English technical terms၊
+problem → concept → comparison → configuration → cautions → self-check progression၊
+version-dependent claims များ flag ပြုလုပ်ခြင်း၊ chapter အဆုံးတွင် "Technical review notes" ပါဝင်ခြင်း။
+
 ## အသုံးပြုပုံ
 
 1. module တစ်ခုချင်း — `explanation.md` → `exercise.md` → `solution.md`

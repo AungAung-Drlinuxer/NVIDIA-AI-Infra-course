@@ -1,14 +1,12 @@
 # Module 01 — AI Infrastructure Foundations (Chapter 1)
 
-> စာအုပ် Chapter 1 အတိုင်း — AI infrastructure ဒီဇိုင်း အခြေခံ၊ GPU ၏ အခန်းကဏ္ဍ၊
-> CPU/GPU/DPU သုံးခု၊ pipeline acceleration နှင့် NVIDIA ecosystem ကို အပြည့် ရှင်းပြပါမည်။
+AI model တစ်ခု လေ့ကျင့်ပြီး production တွင် အလုပ်လုပ်စေရန် hardware ဝယ်ရုံနှင့် မပြီးပါ။
+compute, storage, networking, software, orchestration ဆိုသော အလွှာ ၅ ခု ပေါင်းစပ်ပြီး
+ကုန်ကျစရိတ်၊ စွမ်းဆောင်ရည်၊ လုံခြုံရေး ဟန်ချက်ညီအောင် ဒီဇိုင်းဆွဲရပါမည်။
+ဤ chapter သည် ထိုအလွှာများကို မိတ်ဆက်ပြီး CPU, GPU, DPU တို့၏ အခန်းကဏ္ဍနှင့်
+NVIDIA software ecosystem ကို ခြုံငုံ မိတ်ဆက်ပါမည်။
 
----
-
-## 1.1 AI Infrastructure Design မိတ်ဆက် (Background)
-
-AI infrastructure ဆိုတာ hardware စုပေါင်းမှု မဟုတ်ပါ — **compute, storage, networking,
-software, orchestration** အလွှာ ၅ ခု ပေါင်းစပ် ဒီဇိုင်း ဖြစ်ပါသည်။
+## AI platform ဆိုတာ ဘယ်လို အလွှာများနှင့် ဖွဲ့စည်းထားသလဲ
 
 ```
 ┌───────────────────────────────────────────────────────┐
@@ -24,89 +22,74 @@ software, orchestration** အလွှာ ၅ ခု ပေါင်းစပ်
 └───────────────────────────────────────────────────────┘
 ```
 
-### Design for Production — စိတ်ကူး ၄ ခု ⭐
+အလွှာတစ်ခုချင်းစီသည် သီးခြား ရွေးချယ်မှု လိုအပ်ပြီး အလွှာချင်း interface က
+စွမ်းဆောင်ရည်ကို သတ်မှတ်ပါသည် — ဥပမာ storage နှေးပါက GPU ဘယ်လောက် ကောင်းကောင်း
+utilization ကျလာပါမည်။
 
-စာအုပ်က production ဒီဇိုင်းအတွက် အောက်ပါ ၄ ခုကို အလေးပေးပါသည် —
+## Production အတွက် ဒီဇိုင်းဆွဲရာတွင် ထည့်စဉ်းစားရမည့် အချက် ၄ ခု
 
-1. **Reliability** — hardware ပျက်မှု ဖြစ်နိုင်ကြောင်း ကြိုတင် လက်ခံ — redundancy, failover, burn-in
-2. **Scalability** — node ထပ်ထည့်လျှင် performance တန်းတန်းတက် — scale-up vs scale-out
-3. **Observability** — DCGM/Prometheus/Grafana — တိုင်းတာ၍ မမြင်နိုင်လျှင် မစီမံနိုင်
-4. **Security** — multi-tenant isolation, access control, supply chain
+| အချက် | ဆိုလိုရင်း | လက်တွေ့ ဆောင်ရွက်ချက် |
+|---|---|---|
+| Reliability | hardware ပျက်မှု ဖြစ်လာမည်ကို ကြိုတင် လက်ခံ | redundancy, failover, burn-in test |
+| Scalability | node ထပ်ထည့်လျှင် စွမ်းဆောင်ရည် တန်းတန်းတက် | scale-up vs scale-out ရွေးချယ်မှု |
+| Observability | မတိုင်းတာနိုင်လျှင် မစီမံနိုင် | DCGM, Prometheus, Grafana |
+| Security | multi-tenant အသုံးပြုသူ ဒေတာ ခွဲခြား | isolation, RBAC, audit (Module 06) |
 
-**Training** (job ကြီး၊ ရက်ပေါင်းများ၊ bandwidth မြင့်) နှင့် **Inference** (latency နည်း၊
-စဉ်ဆက်မပြတ်၊ uptime) က requirement မတူ — ဒီဇိုင်းက ၂ မျိုးလုံးကို ထည့်စဉ်းစားရပါမည်။ ⭐
+ထို့အပြင် **training** နှင့် **inference** က requirement မတူပါ။ training သည်
+ရက်ပေါင်းများစွာ ဆက်တိုက် run ပြီး bandwidth အမြင့် လိုသည်။ inference က latency နည်းပြီး
+စဉ်ဆက်မပြတ် ရရှိနေရမည် — ဒီဇိုင်းက ၂ မျိုးလုံးကို ထည့်စဉ်းစားရပါမည်။
 
-## 1.2 GPU ၏ အခန်းကဏ္ဍ — ဘာကြောင့် CPU ထက် မြန်သလဲ ⭐
+## CPU, GPU, DPU — တစ်ခုချင်း ဘာအတွက် တာဝန်ယူသလဲ
 
-```
-CPU (16 cores)                    GPU (A100: 6912 CUDA cores)
-├─ အနည်းငယ် core ကြီးကြီး      ├─ core သေးသေး ထောင်ချီ
-├─ branch ပြတ်/logic ကောင်း       ├─ matrix math များများ တပြိုင်နက်
-└─ sequential အမြန်ဆုံး           └─ parallel throughput အမြင့်ဆုံး
-```
+| Chip | ပုံမှန် တာဝန် | ဘာကြောင့် ထိုအလုပ်အတွက် သင့်သလဲ |
+|---|---|---|
+| **CPU** | OS, control plane, data prep | logic များ၊ branch များသော အလုပ် |
+| **GPU** | model training/inference | matrix math ကို ကြီးမားစွာ parallel လုပ် |
+| **DPU** (BlueField) | network, storage, security offload | infrastructure အလုပ်ကို သီးခြား chip ဖြင့် ကိုင် |
 
-AI ၏ အလုပ် အများစုက **matrix/vector operation** (convolution, attention) ဖြစ်ပြီး
-ထိုအလုပ်က ထောင်ချီ အပိုင်း ခွဲလို့ ရပါသည် — GPU က ထို့ကြောင့် အနိုင်ရခြင်း ဖြစ်ပါသည်။
+DPU က networking/storage/security ကို CPU မှ ဖယ်ရှားပေးသောကြောင့် CPU သည်
+workload အတွက် ပိုလွတ်ပါသည်။ တစ်ချိန်တည်းတွင် infrastructure software ကို
+tenant workload မှ သီးခြားဖြစ်စေပြီး လုံခြုံရေးအတွက်လည်း အထောက်အကူ ဖြစ်ပါသည်။
+
+## GPU က AI workload အတွက် ဘာကြောင့် ပိုသင့်တော်သလဲ
+
+AI ရဲ့ အလုပ် အများစု (convolution, attention, dense layer) သည် matrix/vector
+operation ဖြစ်ပြီး အပိုင်းပေါင်းများစွာ ခွဲလုပ်နိုင်ပါသည်။ CPU က core အနည်းငယ်
+ကြီးကြီးဖြင့် sequential အလုပ်အတွက် ပြင်ဆင်ထားခြင်းဖြစ်ပြီး GPU က core သေးသေး
+ထောင်ချီဖြင့် parallel throughput အတွက် တည်ဆောက်ထားခြင်း ဖြစ်ပါသည်။
 
 - **CUDA cores** — အထွေထွေ parallel math
-- **Tensor Cores** — matrix multiply-accumulate (FP16/BF16/FP8) အထူး unit
-- **Memory bandwidth** — HBM: A100 2TB/s vs CPU DDR4 ~50GB/s — data ကို မြန်မြန် ကျွေးနိုင်
+- **Tensor Cores** — matrix multiply-accumulate အတွက် အထူး unit (FP16/BF16/FP8 စသည်)
+- **Memory bandwidth** — HBM က CPU ၏ DDR ထက် များစွာ မြန်သောကြောင့် data ကို
+  compute unit က မစောင့်ရ
 
-### Framework support နှင့် GPU lineup
+PyTorch, TensorFlow, JAX စသည့် framework အများစုက CUDA ပေါ်တွင် အလုပ်လုပ်သောကြောင့်
+NVIDIA GPU က ecosystem အပြည့်အစုံ ရရှိပါသည်။
 
-PyTorch/TensorFlow/JAX အားလုံးက **CUDA** ပေါ် တည်ဆောက်ထား — NVIDIA GPU သာ
-ecosystem အပြည့် ရပါသည်။
+GPU lineup ကို အသုံးပြုမှု အလိုက် ခွဲနိုင်ပါသည် — desktop development အတွက် RTX series၊
+data center training/inference အတွက် A-series (Ampere), H-series (Hopper), B-series
+(Blackwell)၊ edge device အတွက် Jetson series (Module 07)။ model တစ်ခုချင်း၏ core count,
+memory ပမာဏ၊ bandwidth များက generation နှင့် form factor ပေါ် မူတည်သောကြောင့်
+ဝယ်ယူမီ တရားဝင် specification ကို စစ်ဆေးသင့်ပါသည်။
 
-| Lineup | သုံးရာ | ဥပမာ |
-|---|---|---|
-| RTX/GeForce | desktop dev, inference ငယ် | RTX 5090 |
-| A-series (Ampere) | data center training/inference | A100, A30 |
-| H-series (Hopper) | LLM training | H100, H200 |
-| B-series (Blackwell) | next-gen training | B200, GB200 |
-| Jetson | edge AI | Orin, Thor |
-
-## 1.3 CPU vs GPU vs DPU — three-chip model ⭐
-
-```
-┌────────────────────────────────────────────────────┐
-│                    AI Server                        │
-│  ┌────────┐   ┌────────┐   ┌────────┐              │
-│  │  CPU   │   │  GPU   │   │  DPU   │              │
-│  │general │   │parallel│   │infra   │              │
-│  │logic   │   │math    │   │offload │              │
-│  └────────┘   └────────┘   └────────┘              │
-│   OS/app       AI compute    network/storage/      │
-│   control                    security             │
-└────────────────────────────────────────────────────┘
-```
-
-- **CPU** — OS, control plane, data prep (logic များ)
-- **GPU** — model training/inference (math များ)
-- **DPU (BlueField)** — networking/storage/security ကို ကိုယ်ပိုင် processor ဖြင့် offload —
-  CPU က workload အတွက် လွတ်ပြီး infrastructure က သီးခြား (isolation)
-
-**practice ထဲ** — DGX တစ်လုံးတွင် ၃ ခုလုံး ပါဝင်ပြီး DPU က NIC/storage ကိုင်၊ CPU က job စီမံ၊
-GPU က math လုပ်ပါသည်။
-
-## 1.4 GPU Acceleration for AI/ML Pipelines ⭐
+## AI/ML pipeline တစ်လျှောက် GPU acceleration
 
 ```
 data → [Extract] → [Transform/Preprocess] → [Train] → [Tune] → [Inference]
-         ↑ GPU:      ↑ GPU: RAPIDS,         ↑ GPU:    ↑ GPU:   ↑ GPU: TensorRT/
-       I/O/storage   decode, augment        full      HPO      Triton
+        I/O          GPU (DALI/RAPIDS)       GPU ပင်မ   parallel  GPU (TensorRT/Triton)
 ```
 
-- **Data stages** — image decode, augmentation, tokenization ကို GPU (DALI/RAPIDS) ဖြင့်
-  လုပ်ပါက CPU bottleneck လျှော့ချနိုင်
+- **Data stage** — image decode, augmentation, tokenization ကို GPU ပေါ်တွင် လုပ်ပါက
+  CPU bottleneck လျှော့ချနိုင်ပါသည်
 - **Training** — GPU ၏ ပင်မ အလုပ်
-- **Tuning (HPO)** — experiment များ ကို parallel GPU များဖြင့် တပြိုင်နက်
-- **Inference** — TensorRT (optimize) + Triton (serve) — latency/throughput ပြည့်မီ
+- **Tuning (HPO)** — experiment များကို GPU အများဖြင့် တပြိုင်နက် run
+- **Inference** — TensorRT ဖြင့် optimize ပြီး Triton ဖြင့် serve (Module 08)
 
-⚠️ GPU ဝယ်ရုံနှင့် မပြီး — **data pipeline မမြန်လျှင် GPU က စောင့်နေ**မည် (Chapter 3 တွင် အပြည့်)။
+data pipeline မမြန်ပါက GPU က စောင့်နေရပါမည် — GPU utilization နည်းခြင်း၏
+အကြောင်းရင်း အဖြစ်များဆုံးက GPU ပြဿနာ မဟုတ်ဘဲ data supply ပြဿနာ ဖြစ်လေ့ရှိပါသည်။
 
-## 1.5 NVIDIA Ecosystem Overview ⭐
+## NVIDIA software stack နှင့် deployment component များ
 
-### Software stack
 ```
 ┌────────────────────────────────────────┐
 │ App     NeMo · RAPIDS · Clara          │
@@ -121,36 +104,41 @@ data → [Extract] → [Transform/Preprocess] → [Train] → [Tune] → [Infere
 └────────────────────────────────────────┘
 ```
 
-### Deployment/infrastructure components
-| Component | ဘာလုပ် |
+| Component | အခန်းကဏ္ဍ |
 |---|---|
-| **NGC** | container/model catalog |
-| **GPU Operator** | K8s ထဲ GPU stack အလိုအလျောက် တပ် |
-| **DCGM** | GPU telemetry/diagnostics |
+| **NGC** | container/model catalog (validated image များ) |
+| **GPU Operator** | Kubernetes ထဲ GPU stack ကို အလိုအလျောက် တပ်ဆင်/စီမံ |
+| **DCGM** | GPU telemetry နှင့် diagnostics |
 | **DOCA** | DPU platform SDK |
-| **Triton** | inference server |
+| **Triton** | inference serving (Module 08) |
 
-![CUDA programming model](../images/cuda-programming-model.jpg)
-*ပုံ — CUDA programming model (ရင်းမြစ်: NVIDIA Developer Blog)*
+## လုပ်ငန်းခွင် သတိပေးချက်များ
 
-## 6. အခြား sources ရှင်းလင်းချက်
+- GPU တစ်ခုတည်း ဝယ်ခြင်းက ပြဿနာ မဖြေရှင်းပါ — storage/network/pipeline အားနည်းပါက
+  GPU က အလဟ့် ဖြစ်နေပါမည်။
+- three-chip model ကို အမှတ်အသား အဖြစ်သာ မဟုတ်ဘဲ — ဘယ် component ပျက်လျှင်
+  ဘယ်အလွှာ ထိခိုက်မလဲ ဆိုသော ခွဲခြားမှု အဖြစ် အသုံးပြုပါ။
+- framework "CUDA-enabled" ဆိုခြင်းက CUDA version တိကျစွာ ကိုက်ညီမှု လိုအပ်ပါသည် —
+  version matrix ကို အမြဲ စစ်ဆေးပါ။
 
-- **စာအုပ် (Designing NVIDIA AI Infrastructure)** — "infrastructure က model ထက်
-  **workload fit** ကို ပိုဦးစားပေးရမည်" ဟူသော ဒီဇိုင်း ဒဿနကို အလေးပေး
-- **NVIDIA docs** — three-chip model ကို "CPU=control, GPU=compute, DPU=infrastructure"
-  အဖြစ် တည်နေရာ ၃ ခု ခွဲ ဖော်ပြ
+## ကိုယ့်ကိုယ်ကို စစ်ဆေးရန်
 
-## 7. Self-Check
+1. AI infrastructure အလွှာ ၅ ခု ကို အမည်ပေးပါ။
+2. GPU က CPU ထက် matrix math ပိုမြန်ရသော အကြောင်းရင်း ၂ ခု ပြောပါ။
+3. DPU က မည်သည့် အလုပ် ၃ မျိုးကို offload လုပ်သလဲ။
+4. GPU utilization နည်းနေလျှင် ပထမ သံသယ ရှိသင့်သည့် အကြောင်းရင်း ဘာလဲ။
 
-1. AI infrastructure အလွှာ ၅ ခု?
-2. GPU က CPU ထက် matrix math ပိုမြန်ရခြင်း အကြောင်းရင်း ၂ ခု?
-3. DPU က ဘာတွေ offload လုပ်သလဲ?
+**အဖြေ** — 1) storage, networking, compute, software, orchestration · 2) parallel core အများအပြားနှင့် memory bandwidth မြင့်မှု · 3) networking, storage, security · 4) data supply (dataloader/preprocessing) မမီခြင်း
 
-**အဖြေ** — 1) storage/network/compute/software/orchestration · 2) core အများ (parallel) + memory bandwidth · 3) network/storage/security
+## Technical review notes
 
-## 8. References & Further Reading
+- GPU lineup specification (core count, HBM bandwidth) များက generation နှင့် SKU ပေါ် မူတည်သောကြောင့် ဤတွင် ဂဏန်း မဖော်ပြထားပါ — လိုအပ်ပါက သက်ဆိုင်ရာ GPU ၏ datasheet မှ အတည်ပြုပါ။
+- CUDA framework compatibility သည် version pair ပေါ် မူတည်ပါသည် (needs verification per target stack)။
+
+## References
 
 - စာအုပ်: https://subscription.packtpub.com/book/cloud-and-networking/9781808080135
-- CUDA: https://developer.nvidia.com/cuda-toolkit
-- NGC: https://docs.nvidia.com/ngc/latest/ngc-user-guide.html
-- TensorRT: https://developer.nvidia.com/tensorrt · Triton: https://developer.nvidia.com/triton-inference-server
+- CUDA Toolkit: https://developer.nvidia.com/cuda-toolkit
+- NGC docs: https://docs.nvidia.com/ngc/latest/ngc-user-guide.html
+- TensorRT: https://developer.nvidia.com/tensorrt
+- Triton Inference Server: https://developer.nvidia.com/triton-inference-server

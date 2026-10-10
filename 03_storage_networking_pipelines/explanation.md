@@ -1,111 +1,127 @@
 # Module 03 — Storage, Networking & Data Pipelines (Chapter 3)
 
-> GPU များ ဘယ်လောက် မြန်မြန် — data မမီလျှင် အလကား။ ဤ module တွင်
-> storage architecture, high-speed network, bottleneck ရှာနည်းနှင့် ETL pipeline ဒီဇိုင်းကို ရှင်းပြပါမည်။
+GPU cluster ရဲ့ စွမ်းဆောင်ရည်က GPU အပေါ်တွင်သာ မမူတည်ပါ — data က
+GPU ဆီ ဘယ်လောက် မြန်မြန် ရောက်သလဲ ဆိုတာက တစ်ခါတရံ GPU ထက် ပိုအရေးကြီးပါသည်။
+ဤ chapter သည် storage architecture ရွေးချယ်မှု၊ high-speed network ဖွဲ့စည်းပုံ၊
+data bottleneck ရှာဖွေနည်းနှင့် ETL pipeline ဒီဇိုင်းကို ဖုံးလွှမ်းပါမည်။
 
----
+## Data movement က ဘာကြောင့် အရေးကြီးသလဲ
 
-## 3.0 ဘာကြောင့် data movement က အရေးကြီးသလဲ (Background)
-
-training job တစ်ခုက GPU ပေါ် မလာမီ data ကို storage → network → RAM → GPU memory
-ဖြတ်သန်း ရပါသည် — တစ်ဆင့်နှေးပါက GPU က **စောင့်နေ**ရပြီး util ကျပါသည်။
+training job တစ်ခုအတွက် data က အောက်ပါ လမ်းကြောင်း တစ်လျှောက် ဖြတ်သွားပါသည် —
 
 ```
 storage → [network] → host RAM → [PCIe] → GPU memory → compute
-   ↑ နှေးပါက တစ်ခုလုံး နှေး (GPU util ကျ)
 ```
 
-## 3.1 Storage Architectures — အမျိုးအစား ၃ မျိုး ⭐
+တစ်နေရာတွင် နှေးပါက GPU က စောင့်နေရပြီး utilization ကျပါသည် —
+ဆိုလိုသည်မှာ ဈေးကြီး GPU က အလဟ့် ဖြစ်နေပါသည်။
 
-| အမျိုးအစား | ပုံစံ | ဥပမာ | AI အတွက် သုံးရာ |
+## Storage အမျိုးအစား ၃ မျိုးနှင့် AI cluster ဒီဇိုင်း
+
+| အမျိုးအစား | ပုံစံ | ဥပမာ | AI တွင် အသုံးပြုပုံ |
 |---|---|---|---|
-| **Block** | raw device | NVMe, SAN | local scratch, DB |
-| **File** | hierarchy | NFS, Lustre, GPFS | shared training data |
-| **Object** | key-value | S3, MinIO | dataset archive, checkpoint |
+| **Block** | raw device | local NVMe, SAN | scratch, database |
+| **File** | directory hierarchy | NFS, Lustre, GPFS | shared training dataset |
+| **Object** | key-value + metadata | S3, MinIO | dataset archive, checkpoint, versioning |
 
-### AI အတွက် ပုံမှန် ဒီဇိုင်း ⭐
-```
-┌─────────────────────────────────────────┐
-│ Object storage (S3)   — dataset source  │
-│ Parallel FS (Lustre)  — training read   │ ← အမြန်ဆုံး shared
-│ Local NVMe            — scratch/cache   │ ← အနီးဆုံး
-└─────────────────────────────────────────┘
-```
-- **Parallel FS** (Lustre/GPFS) — node ရာပေါင်းများ တပြိုင်နက် ဖတ်နိုင် — training အဓိက
-- **Local NVMe** — checkpoint/intermediate အတွက် အမြန်ဆုံး
-- **Object storage** — ပမာဏ ကြီး၊ ဈေးသက်သာ (versioning ပါ)
-
-## 3.2 High-Speed Networking ⭐
+လက်တွေ့ cluster တစ်ခုတွင် သုံးခုလုံး ပေါင်းသုံးလေ့ ရှိပါသည် —
 
 ```
-intra-node:   NVLink (GPU↔GPU)        900GB/s အဆင့်
-inter-node:   InfiniBand (NDR 400G) / RoCE
-storage:      NVMe-oF, 200/400GbE
+┌────────────────────────────────────────────────────┐
+│ Object storage (S3)      — dataset source/archive  │
+│ Parallel FS (Lustre/GPFS)— training read (shared)  │
+│ Local NVMe               — cache/checkpoint (fast) │
+└────────────────────────────────────────────────────┘
 ```
 
-- **InfiniBand** — RDMA (kernel bypass), latency နည်း — HPC/AI စံ
-- **RoCE** — Ethernet ပေါ် RDMA — datacenter ရှိပြီးသား fabric သုံးရာ
-- **GPUDirect** — NIC/storage က GPU memory သို့ တိုက်ရိုက် (CPU/RAM ကျော်) —
-  **GPUDirect Storage (GDS)** = storage → GPU တိုက်ရိုက် ⭐
+- **Parallel file system** က node ရာပေါင်းများ တပြိုင်နက် ဖတ်ခြင်းကို ကိုင်တွယ်နိုင်သောကြောင့်
+  large-scale training အတွက် အဓိက ဖြစ်ပါသည်
+- **Local NVMe** က အနီးဆုံး ဖြစ်သောကြောင့် hot cache နှင့် checkpoint အတွက် သင့်ပါသည်
+- **Object storage** က ပမာဏ ကြီးပြီး ကုန်ကျစရိတ် သက်သာသည် — versioning ပါဝင်၍
+  dataset ဗားရှင်း စီမံရာတွင် အသုံးဝင်ပါသည်
 
-စာမေးပွဲ trap — "GPU ကြား bandwidth" = NVLink၊ "node ကြား" = InfiniBand/RoCE။
+## High-speed network — ဘယ်လမ်းကြောင်းမှာ ဘာသုံးမလဲ
 
-## 3.3 Data Movement Bottlenecks & Optimization ⭐
+| လမ်းကြောင်း | နည်းပညာ | ဘာကြောင့် |
+|---|---|---|
+| GPU ↔ GPU (node အတွင်း) | **NVLink** | host PCIe ထက် bandwidth အမြင့် |
+| node ↔ node | **InfiniBand** / **RoCE** | RDMA — CPU overhead နည်း, latency နည်း |
+| node ↔ storage | high-speed Ethernet / NVMe-oF | storage traffic သီးခြား |
 
-### ဘယ်လို ရှာမလဲ
+- **InfiniBand** (HDR 200G, NDR 400G စသည်) က RDMA (kernel bypass) ကြောင့်
+  latency နည်းပြီး HPC/AI cluster ၏ အသုံးများဆုံး fabric ဖြစ်ပါသည်
+- **RoCE** (RDMA over Converged Ethernet) က Ethernet fabric ရှိပြီးသား datacenter
+  များအတွက် ရွေးချယ်စရာ ဖြစ်ပါသည်
+- **GPUDirect** က NIC/storage က GPU memory သို့ တိုက်ရိုက် ရောက်စေပါသည် —
+  **GPUDirect Storage** ဆိုပါက storage → GPU တိုက်ရိုက် ဖြစ်ပြီး host RAM copy ကို
+  ဖယ်ရှားပေးပါသည်
+
+ဗဟုသုတ — "GPU ကြား bandwidth" မေးပါက NVLink၊ "node ကြား" မေးပါက
+InfiniBand/RoCE ဟု ခွဲခြား ဖြေလေ့ ရှိပါသည်။
+
+## Bottleneck ရှာဖွေခြင်းနှင့် ဖြေရှင်းခြင်း
+
+GPU utilization နည်းနေပါက အောက်ပါ အစဉ်အတိုင်း ခွဲခြား စစ်ဆေးပါ —
+
+1. `nvidia-smi` — GPU state (utilization, memory) ကြည့်ပါ
+2. CPU utilization — dataloader/preprocessing က CPU ပြည့်နေခြင်း ရှိ/မရှိ
+3. storage throughput — read bandwidth လုံလောက်ခြင်း ရှိ/မရှိ
+4. network bandwidth/error — fabric ပြဿနာ ရှိ/မရှိ
+
+| တွေ့ရှိချက် | ဖြေရှင်းနည်း |
+|---|---|
+| GPU စောင့်နေ (util နည်း, gap ကြီး) | prefetch, parallel data loader, cache |
+| preprocess က CPU ပြည့် | GPU-based decode (DALI), batch preprocess |
+| storage read နှေး | local NVMe cache, GPUDirect Storage |
+| multi-node မှာ ပိုနှေး | NCCL tuning, fabric link check |
+
+အခြား optimization များ — mixed precision (FP16/BF16) ဖြင့် data/memory ပမာဏ
+လျှော့ချခြင်း၊ asynchronous loading ဖြင့် GPU compute နှင့် data load overlap လုပ်ခြင်း။
+
+## AI data pipeline (ETL) ဒီဇိုင်း
+
 ```
-GPU util နည်းနေလျှင် —
-① nvidia-smi (util/mem) ကြည့်
-② CPU util (dataloader က CPU ပြည့်နေလား)
-③ storage throughput (iostat/benchmark)
-④ network (bandwidth/error)
+Extract        →    Transform        →    Load
+(S3/object)         (clean, tokenize,     (parallel FS /
+                     augment, format)      GPU-ready format)
 ```
 
-### Optimization နည်းလမ်းများ ⭐
-- **Prefetch/async loading** — GPU မလိုအပ်မီ data ကြိုတင် ဆောင်ရွက်
-- **Parallel data loader** (PyTorch DataLoader workers)
-- **Cached local NVMe** — hot dataset ကို node အတွင်း သိမ်း
-- **GPUDirect Storage** — host RAM copy ဖယ်
-- **DALI** — decode/augment ကို GPU ပေါ်
-- **Mixed precision (FP16/BF16)** — data ပမာဏ လျှော့
+production pipeline တစ်ခုတွင် ETL ထက် ပိုလိုအပ်ပါသည် —
 
-## 3.4 AI Data Pipeline Design (ETL) ⭐
+- **Validation** — corrupt/missing data ကို ဝင်မလာစေရန် schema/quality check
+- **Versioning** — dataset version သတ်မှတ်ခြင်းက experiment reproducibility အတွက် အရေးကြီးပါသည်
+- **Streaming** — Petabyte-scale တွင် အကုန် load မလုပ်ဘဲ batch/streaming ဖြင့် ဖြည်းဖြည်း သုံးပါ
+- **Monitoring** — pipeline throughput နှင့် error rate ကို တိုင်းတာပါ
 
-```
-Extract        →    Transform       →    Load
-(S3/object)        (clean, tokenize,     (training FS /
-                    augment, format)      GPU-ready format)
-```
+pipeline မတည်ငြိမ်ပါက training ပြန်စရခြင်း၊ GPU idle ဖြစ်ရခြင်း ဆိုသည်မှာ
+data pipeline quality က training reliability ဖြစ်ကြောင်း ပြပါသည်။
 
-### Production example လက်တွေ့ စီမံခန့်ခွဲမှု ⭐
-- **Validation** — data quality/schema စစ် (corrupt/missing ဖယ်)
-- **Versioning** — dataset version သတ်မှတ် (reproducibility)
-- **Streaming** — တစ်ခါတည်း အကုန် မထည့်ဘဲ batch အလိုက် (Petabyte-scale)
-- **Monitoring** — pipeline throughput/ error rate တိုင်းတာ
+## လုပ်ငန်းခွင် သတိပေးချက်များ
 
-⚠️ pipeline က မတည်ငြိမ်လျှင် training ပြန်စရခြင်း/GPU idle ဖြစ်ရခြင်း —
-**data pipeline quality = training reliability** ဖြစ်ပါသည်။ ⭐
+- storage/network ဒီဇိုင်းကို "အမြန်ဆုံး" မဟုတ်ဘဲ **workload pattern နှင့် ကိုက်ညီမှု**ပေါ်
+  ရွေးချယ်ပါ — training read pattern နှင့် archive pattern မတူပါ
+- GPUDirect Storage သုံးပါက filesystem နှင့် driver support ကို အတည်ပြုပါ
+  (version-dependent)
+- fabric bandwidth ဂဏန်းများ (200G/400G...) က generation ပေါ် မူတည်ပါသည် —
+  တပ်ဆင်မီ vendor spec မှ အတည်ပြုပါ
 
-## 5. အခြား sources ရှင်းလင်းချက်
+## ကိုယ့်ကိုယ်ကို စစ်ဆေးရန်
 
-- **စာအုပ်** — "storage က ဒေတာ ပမာဏပေါ်၊ network က ပေါင်းချုပ် traffic ပေါ် မူတည်
-  ဒီဇိုင်း ပြုလုပ်ရမည်" — one-size-fits-all မရှိ
-- **NVIDIA GDS docs** — "CPU ကို data path ကနေ ဖယ်ခြင်း" ကို bottleneck ဖြေရှင်းရေး၏
-  နောက်ဆုံး အဆင့်အဖြစ် ဖော်ပြ
-- **DC-Lab-Sim-course Module 08** — GPU util နည်းခြင်း ခွဲခြားနည်း (လက်တွေ့ ဗားရှင်း)
+1. Lustre က storage အမျိုးအစား ဘာလဲ။
+2. GPUDirect Storage က မည်သည့် copy ကို ဖယ်ရှားပေးသလဲ။
+3. ETL အဆင့် ၃ ခု ကို ပြောပါ။
+4. GPU utilization နည်းနေပါက ပထမဆုံး ဘာ စစ်မလဲ။
 
-## 6. Self-Check
+**အဖြေ** — 1) parallel file system (shared) · 2) host RAM copy (storage → GPU တိုက်ရိုက်) · 3) Extract, Transform, Load · 4) data supply (dataloader/throughput) ကို စစ်ဆေး
 
-1. Lustre က ဘယ် storage အမျိုးအစားလဲ?
-2. GPUDirect Storage က ဘာကို ဖယ်ပေးသလဲ?
-3. ETL ၃ အဆင့်?
+## Technical review notes
 
-**အဖြေ** — 1) parallel file (shared) · 2) host RAM copy (storage→GPU တိုက်ရိုက်) · 3) Extract, Transform, Load
+- fabric bandwidth (NVLink/IB/RoCE) ဂဏန်းများက generation နှင့် port config ပေါ် မူတည်ပါသည် — ဤတွင် အမျိုးအစား အဆင့်သာ ဖော်ပြထားပါသည်။
+- GPUDirect Storage support သည် filesystem နှင့် software version ပေါ် မူတည်ပါသည် (needs verification per environment)။
 
-## 7. References & Further Reading
+## References
 
 - GPUDirect Storage: https://docs.nvidia.com/gpudirect-storage/
 - Magnum IO: https://developer.nvidia.com/magnum-io
-- SuperPOD Storage: https://docs.nvidia.com/dgx-superpod/reference-architecture-scalable-infrastructure-h100/latest/storage-architecture.html
-- NCCL: https://docs.nvidia.com/multi-node-nvlink-systems/multi-node-tuning-guide/nccl.html
+- NCCL tuning: https://docs.nvidia.com/multi-node-nvlink-systems/multi-node-tuning-guide/nccl.html
 - စာအုပ်: https://subscription.packtpub.com/book/cloud-and-networking/9781808080135/3
